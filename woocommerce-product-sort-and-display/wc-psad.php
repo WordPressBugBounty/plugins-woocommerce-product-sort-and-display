@@ -4,7 +4,7 @@ Plugin Name: Product Sort and Display for WooCommerce
 Description: Take control of your WooCommerce Shop random product display with WooCommerce Show Products by Category. Sort and show products on Shop page by category with 'On Sale' or 'Featured' products showing first. Products showing and total products per category count for intelligent viewing.
 Version: 2.4.3
 Requires at least: 6.0
-Tested up to: 6.6
+Tested up to: 6.7
 Author: a3rev Software
 Author URI: https://a3rev.com/
 Text Domain: woocommerce-product-sort-and-display
