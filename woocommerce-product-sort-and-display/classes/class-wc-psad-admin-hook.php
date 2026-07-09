@@ -41,15 +41,12 @@ class Admin_Hook
 
 		// Update PSAD featured product via AJAX
 		add_action('wp_ajax_woocommerce_feature_product', array( $this, 'feature_product' ), 1 );
-		add_action('wp_ajax_nopriv_woocommerce_feature_product', array( $this, 'feature_product' ), 1 );
-		
+
 		// AJAX hide yellow message dontshow
 		add_action('wp_ajax_psad_yellow_message_dontshow', array( $this, 'psad_yellow_message_dontshow' ) );
-		add_action('wp_ajax_nopriv_psad_yellow_message_dontshow', array( $this, 'psad_yellow_message_dontshow' ) );
-		
+
 		// AJAX hide yellow message dismiss
 		add_action('wp_ajax_psad_yellow_message_dismiss', array( $this, 'psad_yellow_message_dismiss' ) );
-		add_action('wp_ajax_nopriv_psad_yellow_message_dismiss', array( $this, 'psad_yellow_message_dismiss' ) );
 
 		/*
 		 * Trigger for automatic flush cache
@@ -60,7 +57,6 @@ class Admin_Hook
 		if ( is_admin() ) {
 			// AJAX update taxonomy
 			add_action('wp_ajax_psad_update_product_cat_custom_meta', array( $this, 'psad_update_product_cat_custom_meta_ajax' ) );
-			add_action('wp_ajax_nopriv_psad_update_product_cat_custom_meta', array( $this, 'psad_update_product_cat_custom_meta_ajax' ) );
 		}
 		
 	}
@@ -87,11 +83,11 @@ class Admin_Hook
 	 *
 	 */
 	public function include_script( ) {
-		if ( ! in_array( basename( $_SERVER['PHP_SELF'] ), array( 'edit-tags.php', 'term.php' ) ) ) return;
+		if ( ! isset( $GLOBALS['pagenow'] ) || ! in_array( $GLOBALS['pagenow'], array( 'edit-tags.php', 'term.php' ) ) ) return;
 		if ( ! isset( $_REQUEST['taxonomy'] ) || ! in_array( $_REQUEST['taxonomy'], array( 'product_cat' ) ) ) return;
 
-		if ( ! isset( $_SESSION ) ) {
-			@session_start();
+		if ( session_status() === PHP_SESSION_NONE ) {
+			session_start();
 		}
 
 		add_action( 'admin_footer', array( $GLOBALS[WC_PSAD_PREFIX.'admin_interface'], 'admin_script_load' ) );
@@ -177,7 +173,7 @@ class Admin_Hook
 	            	$sort_options = $wc_psad->get_sort_options();
 	            	foreach ( $sort_options as $key => $value ) {
 	            ?>
-				<option value="<?php echo $key; ?>"><?php echo $value; ?></option>
+				<option value="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $value ); ?></option>
 	            <?php
 	            	}
 	            ?>
@@ -211,7 +207,7 @@ class Admin_Hook
 	        <tr class="form-field">
 			<th scope="row" valign="top"><label for="psad_shop_product_per_page"><?php _e( 'Products per Category', 'woocommerce-product-sort-and-display' ); ?></label></th>
 			<td>
-	            <input id="psad_shop_product_per_page" name="psad_shop_product_per_page" type="text" style="width:120px;" value="<?php echo $psad_shop_product_per_page;?>" />
+	            <input id="psad_shop_product_per_page" name="psad_shop_product_per_page" type="text" style="width:120px;" value="<?php echo esc_attr( $psad_shop_product_per_page );?>" />
 	            <p class="description"><?php _e("Number of products to show for this Category on Shop page. Empty to use your Sort & Display global settings.", 'woocommerce-product-sort-and-display' ); ?></p>
 	        </td>
 	        </tr>
@@ -225,7 +221,7 @@ class Admin_Hook
 		            	$sort_options = $wc_psad->get_sort_options();
 		            	foreach ( $sort_options as $key => $value ) {
 		            ?>
-					<option <?php selected( $key, $psad_shop_product_show_type, true ); ?> value="<?php echo $key; ?>"><?php echo $value; ?></option>
+					<option <?php selected( $key, $psad_shop_product_show_type, true ); ?> value="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $value ); ?></option>
 		            <?php
 		            	}
 		            ?>
@@ -289,7 +285,7 @@ class Admin_Hook
 					$checked = 'checked="checked"';
 				}
 				?>
-					<div style="text-align: center;"><input data-id="<?php echo $id;?>" class="a3rev_panel_container_on_table_onoff" type="checkbox" <?php echo $checked; ?> name="psad_include_shop_page[<?php echo $id;?>]" id="psad_include_shop_page_<?php echo $id;?>" value="1" /></div>
+					<div style="text-align: center;"><input data-id="<?php echo absint( $id );?>" class="a3rev_panel_container_on_table_onoff" type="checkbox" <?php echo esc_attr( $checked ); ?> name="psad_include_shop_page[<?php echo absint( $id );?>]" id="psad_include_shop_page_<?php echo absint( $id );?>" value="1" /></div>
 				<?php
 			}
 
@@ -306,7 +302,11 @@ class Admin_Hook
 	// Save extra taxonomy fields callback function.
 	public function psad_update_product_cat_custom_meta_ajax() {
 		check_ajax_referer( 'psad_update_product_cat_custom_meta', 'security' );
-		
+
+		if ( ! current_user_can( 'manage_product_terms' ) ) {
+			wp_die( -1, 403 );
+		}
+
 		global $wpdb;
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM '. $wpdb->options . ' WHERE option_name LIKE %s', '%a3_shop_cat%' ) );
 
@@ -331,17 +331,31 @@ class Admin_Hook
 	
 	public function psad_yellow_message_dontshow() {
 		check_ajax_referer( 'psad_yellow_message_dontshow', 'security' );
-		$option_name   = sanitize_key( $_REQUEST['option_name'] );
-		update_option( $option_name, 1 );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			die();
+		}
+
+		$option_name = isset( $_REQUEST['option_name'] ) ? sanitize_key( $_REQUEST['option_name'] ) : '';
+		if ( 0 === strpos( $option_name, 'psad_' ) || 0 === strpos( $option_name, 'wc_psad_' ) ) {
+			update_option( $option_name, 1 );
+		}
 		die();
 	}
-	
+
 	public function psad_yellow_message_dismiss() {
 		check_ajax_referer( 'psad_yellow_message_dismiss', 'security' );
-		$session_name   = $_REQUEST['session_name'];
-		update_option( $session_name, 1 );
-		if ( !isset($_SESSION) ) { @session_start(); } 
-		$_SESSION[$session_name] = 1 ;
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			die();
+		}
+
+		$session_name = isset( $_REQUEST['session_name'] ) ? sanitize_key( $_REQUEST['session_name'] ) : '';
+		if ( 0 === strpos( $session_name, 'psad_' ) || 0 === strpos( $session_name, 'wc_psad_' ) ) {
+			update_option( $session_name, 1 );
+			if ( session_status() === PHP_SESSION_NONE ) { session_start(); }
+			$_SESSION[ $session_name ] = 1;
+		}
 		die();
 	}
 	
